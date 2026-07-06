@@ -1,9 +1,9 @@
 <!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Badminton Ver0.3</title><style>
-body{font-family:-apple-system,sans-serif;padding:15px;background:#f2f2f7;max-width:600px;margin:0 auto;color:#1c1c1e}h1{text-align:center;font-size:18px;margin-bottom:15px}.match-count-title{text-align:center;font-size:16px;font-weight:bold;color:#555;margin-bottom:10px}.box{background:white;padding:15px;border-radius:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}.flex-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:space-between}select{padding:10px;border:1px solid #c7c7cc;border-radius:8px;font-size:16px;background:white}button{padding:12px;background:#007aff;color:white;border:none;border-radius:8px;font-weight:bold;font-size:16px}.btn-success{background:#34c759;width:100%;padding:14px;font-size:18px;margin-top:5px}.number-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}.num-btn{background:#e5e5ea;color:#1c1c1e;border:none;border-radius:8px;padding:12px 0;font-size:16px;font-weight:bold;text-align:center}.num-btn.active{background:#007aff;color:white}.court-title{font-weight:bold;color:#007aff;border-bottom:2px solid #007aff;padding-bottom:4px;margin-top:15px;font-size:16px}.match-display{font-size:20px;font-weight:bold;text-align:center;margin:10px 0;background:#f2f2f7;padding:12px;border-radius:8px}.status-text{font-size:12px;color:#8e8e93;margin-top:2px}.history-item{background:#fafafa;border:1px solid #e5e5ea;border-radius:8px;padding:10px;margin-bottom:8px;position:relative}.history-title{font-size:14px;font-weight:bold;color:#555}.history-detail{font-size:15px;margin-top:4px}.btn-undo{background:#ff3b30;font-size:12px;padding:6px 10px;position:absolute;right:10px;top:10px;color:white;border-radius:6px;border:none;font-weight:bold}
+body{font-family:-apple-system,sans-serif;padding:15px;background:#f2f2f7;max-width:600px;margin:0 auto;color:#1c1c1e}h1{text-align:center;font-size:18px;margin-bottom:15px}.match-count-title{text-align:center;font-size:14px;color:#666;margin-bottom:10px}.box{background:white;border-radius:12px;padding:15px;margin-bottom:15px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}.flex-row{display:flex;gap:10px;align-items:center}.num-btn{width:50px;height:50px;border:2px solid #e5e5ea;background:white;border-radius:8px;font-weight:bold;cursor:pointer;position:relative;transition:all 0.3s}.num-btn:hover{border-color:#666}.num-btn.active{background:#007aff;color:white;border-color:#007aff}.status-text{font-size:10px;position:absolute;bottom:2px;right:2px;color:inherit}.number-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px}select{padding:8px;border:1px solid #ccc;border-radius:6px;font-size:14px}button.btn-action{background:#007aff;color:white;border:none;padding:10px 20px;border-radius:6px;font-size:14px;cursor:pointer;font-weight:bold}button.btn-action:hover{background:#0051d5}button.btn-undo{background:#ff3b30;color:white;border:none;padding:5px 10px;border-radius:4px;font-size:12px;cursor:pointer;margin-left:10px}button.btn-undo:hover{background:#cc2200}.court-title{background:#f2f2f7;padding:8px;margin-top:10px;font-weight:bold;font-size:14px}.match-display{background:#e8f4ff;padding:12px;margin-top:5px;border-radius:6px;font-size:14px;line-height:1.6}.history-item{background:#f9f9f9;padding:10px;margin-top:8px;border-left:4px solid #007aff;border-radius:4px;font-size:13px}.history-title{font-weight:bold;color:#007aff}
 </style></head><body>
 <h1>🏸 ダブルス組み合わせ（Ver0.3）</h1>
 <div id="matchCounter" class="match-count-title">現在：まだ試合はありません</div>
-<div class="box"><div class="flex-row"><span>使用コート数:</span><select id="courtSelect"><option value="1">1 面</option><option value="2">2 面</option><option value="3">3 面</option><option value="4">4 面</option></select></div><button class="btn-success" onclick="makeMatches()">次の試合を組む</button><div id="matchOutput"></div></div>
+<div class="box"><div class="flex-row"><span>使用コート数:</span><select id="courtSelect"><option value="1">1 面</option><option value="2">2 面</option><option value="3">3 面</option><option value="4">4 面</option><option value="5">5 面</option></select></div><button class="btn-action" onclick="makeMatches()" style="margin-top:10px;width:100%">試合を作成</button><div id="matchOutput" style="color:#666;text-align:center;padding:10px"></div></div>
 <div class="box"><h3>今日いる人の数字をタップ（青＝参加中）</h3><span style="font-size:12px;color:#8e8e93">※カッコ内は試合数</span><div class="number-grid" id="numberGrid"></div></div>
 <div class="box"><h3>過去の試合履歴</h3><div id="historyOutput" style="font-size:14px;color:#555">履歴はまだありません。</div></div>
 <script>
@@ -25,7 +25,7 @@ function renderHistory(){
     const h=document.getElementById('historyOutput');if(!h)return;if(matchHistory.length===0){h.innerHTML='履歴はまだありません。';return}
     let html='';for(let i=matchHistory.length-1;i>=0;i--){
         let m=matchHistory[i],dt='';for(let j=0;j<m.courts.length;j++){let c=m.courts[j];dt+=`<div>面${j+1}: [${c.p1}-${c.p2}] vs [${c.p3}-${c.p4}]</div>`}
-        html+=`<div class="history-item"><div class="history-title">第 ${m.matchNum} 試合</div>${i===matchHistory.length-1?'<button class="btn-undo" onclick="undoMatch()">↩︎</button>':''}<div class="history-detail">${dt}</div></div>`
+        html+=`<div class="history-item"><div class="history-title">第 ${m.matchNum} 試合</div>${i===matchHistory.length-1?'<button class="btn-undo" onclick="undoMatch()">↩︎</button>':''}<div style="margin-top:5px">${dt}</div></div>`
     }
     h.innerHTML=html
 }
@@ -47,7 +47,7 @@ function rebuildAllStatus(){
     }
     document.getElementById('matchCounter').innerText=globalMatchIndex===0?"現在：まだ試合はありません":"現在：【第 "+globalMatchIndex+" 試合目】";
 }
-function undoMatch(){if(matchHistory.length===0)return;matchHistory.pop();rebuildAllStatus();document.getElementById('matchOutput').innerHTML='<div style="color:#ff3b30;text-align:center;padding:10px;font-weight:bold;">1試合取り消されました</div>';renderGrid();renderHistory()}
+function undoMatch(){if(matchHistory.length===0)return;matchHistory.pop();rebuildAllStatus();document.getElementById('matchOutput').innerHTML='<div style="color:#ff3b30;text-align:center;padding:10px">最後の試合を取り消しました</div>';renderGrid();renderHistory()}
 function makeMatches(){
     let pool=members.filter(m=>m.active);const courtCount=parseInt(document.getElementById('courtSelect').value);const req=courtCount*4;
     if(pool.length<req){alert(`数字が青くなっている人が ${req} 人以上必要です！`);return}
@@ -59,7 +59,7 @@ function makeMatches(){
         pool.sort(()=>Math.random()-0.5);
         pool.sort((a,b)=>{
             if(maxRest>=1){let aR=a.restCount===maxRest?1:0,bR=b.restCount===maxRest?1:0;if(bR!==aR)return bR-aR}
-            return b.restCount-a.restCount;
+            return a.restCount-b.restCount;
         });
         
         let sel=pool.slice(0,req);let min=Infinity;

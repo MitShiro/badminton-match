@@ -18,6 +18,7 @@ function toggleActive(id){
     if(!m.active){m.joinIndex=globalMatchIndex}else{m.joinIndex=0}
     m.active=!m.active;rebuildAllStatus();renderGrid()
 }
+// 300回シミュレーションシステムの基礎
 function getScore(p1,p2,h){const k=[p1,p2].sort().join('-');return h[k]||0}
 function getCtScore(p,pos){const k=p+'-'+pos;return courtHistory[k]||0}
 function renderHistory(){
@@ -53,12 +54,17 @@ function makeMatches(){
     let best=null;
     if(pool.every(m=>m.count===0)){pool.sort((a,b)=>a.id-b.id);best=[...pool.slice(0,req)]}else{
         let maxRest=0;pool.forEach(m=>{if(m.restCount>maxRest)maxRest=m.restCount});
-        let min=Infinity;
-        // 【b55最強ロジック完全復活】事前の固定ソートを全廃。300回の中でメンバー選出からコート配置までを完全シャッフルして全探索します。
+        
+        // 【バグ完全解決】最高お休み数が「1回以上」のときから最優先でコートに確定救済させます（5人運用でもガチでバラけます）
+        pool.sort(()=>Math.random()-0.5);
+        pool.sort((a,b)=>{
+            if(maxRest>=1){let aR=a.restCount===maxRest?1:0,bR=b.restCount===maxRest?1:0;if(bR!==aR)return bR-aR}
+            return b.restCount-a.restCount;
+        });
+        
+        let sel=pool.slice(0,req);let min=Infinity;
         for(let i=0; i<300; i++){
-            let tmp=[...pool].sort(()=>Math.random()-0.5).slice(0,req),scr=0;
-            if(maxRest>=2){pool.forEach(m=>{if(m.restCount===maxRest&&!tmp.some(p=>p.id===m.id))scr+=5000})}
-            tmp.forEach(p=>{scr-=pool.find(m=>m.id===p.id).restCount*10});
+            let tmp=[...sel].sort(()=>Math.random()-0.5).slice(0,req),scr=0;
             for(let c=0;c<courtCount;c++){
                 let idx=c*4,t1=tmp[idx].id,t2=tmp[idx+1].id,t3=tmp[idx+2].id,t4=tmp[idx+3].id;
                 scr+=getScore(t1,t2,pairHistory)*5+getScore(t3,t4,pairHistory)*5;

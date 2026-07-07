@@ -1,0 +1,184 @@
+<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Badminton Backtest</title><style>
+body{font-family:monospace;padding:20px;background:#f2f2f7;max-width:800px;margin:0 auto;color:#1c1c1e}h1{text-align:center;font-size:20px;margin-bottom:20px}.output{background:white;border-radius:12px;padding:20px;box-shadow:0 1px 3px rgba(0,0,0,0.1);white-space:pre-wrap;word-wrap:break-word;font-size:13px;line-height:1.6}
+</style></head><body>
+<h1>🏸 バドミントン試合配置 - バックテスト結果</h1>
+<div class="output" id="output">実行中...</div>
+
+<script>
+function getScore(p1, p2, h) {
+  const k = [p1, p2].sort().join('-');
+  return h[k] || 0;
+}
+
+function getCtScore(p, pos) {
+  const k = p + '-' + pos;
+  return courtHistory[k] || 0;
+}
+
+function runScenario(numPeople, courtCount, numMatches) {
+  let members = [];
+  for (let i = 1; i <= numPeople; i++) {
+    members.push({ id: i, count: 0, active: true, restCount: 0, joinIndex: 0 });
+  }
+  
+  let pairHistory = {}, vsHistory = {}, sideHistory = {}, courtHistory = {}, matchHistory = [];
+  
+  for (let matchIdx = 0; matchIdx < numMatches; matchIdx++) {
+    let pool = members.filter(m => m.active);
+    const req = courtCount * 4;
+    let best = null;
+    
+    if (pool.every(m => m.count === 0)) {
+      pool.sort((a, b) => a.id - b.id);
+      best = [...pool.slice(0, req)];
+    } else {
+      let maxRest = 0;
+      pool.forEach(m => { if (m.restCount > maxRest) maxRest = m.restCount; });
+      
+      pool.sort(() => Math.random() - 0.5);
+      pool.sort((a, b) => {
+        if (maxRest >= 1) {
+          let aR = a.restCount === maxRest ? 1 : 0, bR = b.restCount === maxRest ? 1 : 0;
+          if (bR !== aR) return bR - aR;
+        }
+        return a.restCount - b.restCount;
+      });
+      
+      let sel = pool.slice(0, req);
+      let min = Infinity;
+      for (let i = 0; i < 300; i++) {
+        let tmp = [...sel].sort(() => Math.random() - 0.5).slice(0, req), scr = 0;
+        for (let c = 0; c < courtCount; c++) {
+          let idx = c * 4, t1 = tmp[idx].id, t2 = tmp[idx + 1].id, t3 = tmp[idx + 2].id, t4 = tmp[idx + 3].id;
+          scr += getScore(t1, t2, pairHistory) * 5 + getScore(t3, t4, pairHistory) * 5;
+          scr += getScore(t1, t3, vsHistory) + getScore(t1, t4, vsHistory) + getScore(t2, t3, vsHistory) + getScore(t2, t4, vsHistory);
+          scr += getScore(t1, t2, sideHistory) + getScore(t3, t4, sideHistory) + getCtScore(t1, c * 2) * 2 + getCtScore(t2, c * 2) * 2 + getCtScore(t3, c * 2 + 1) * 2 + getCtScore(t4, c * 2 + 1) * 2;
+          
+          if (matchHistory.length > 0) {
+            let lastM = matchHistory[matchHistory.length - 1];
+            let isLast = function (p1, p2) {
+              let k = [p1, p2].sort().join('-');
+              return lastM.courts.some(o => [o.p1, o.p2].sort().join('-') === k || [o.p3, o.p4].sort().join('-') === k);
+            };
+            if (isLast(t1, t2) || isLast(t3, t4)) scr += 2000;
+          }
+          
+          let pA = [t1, t2].sort().join('-'), pB = [t3, t4].sort().join('-');
+          let curKey = [pA, pB].sort().join('/');
+          let isDup = false;
+          for (let hIdx = 0; hIdx < matchHistory.length; hIdx++) {
+            let hRef = matchHistory[hIdx];
+            for (let cIdx = 0; cIdx < hRef.courts.length; cIdx++) {
+              let o = hRef.courts[cIdx];
+              let cA = [o.p1, o.p2].sort().join('-'), cB = [o.p3, o.p4].sort().join('-');
+              if ([cA, cB].sort().join('/') === curKey) {
+                isDup = true;
+                break;
+              }
+            }
+            if (isDup) break;
+          }
+          if (isDup) scr += 1000;
+        }
+        if (scr < min) { min = scr; best = tmp; }
+      }
+    }
+    
+    let rec = { matchNum: matchIdx + 1, courts: [] };
+    for (let c = 0; c < courtCount; c++) {
+      let idx = c * 4;
+      rec.courts.push({ p1: best[idx].id, p2: best[idx + 1].id, p3: best[idx + 2].id, p4: best[idx + 3].id });
+    }
+    matchHistory.push(rec);
+    
+    // Rebuild status
+    pairHistory = {}; vsHistory = {}; sideHistory = {}; courtHistory = {};
+    members.forEach(m => { m.count = 0; m.restCount = 0; });
+    
+    for (let i = 0; i < matchHistory.length; i++) {
+      let m = matchHistory[i], playedIds = [];
+      for (let c = 0; c < m.courts.length; c++) {
+        let o = m.courts[c];
+        let p1 = o.p1, p2 = o.p2, p3 = o.p3, p4 = o.p4;
+        playedIds.push(p1, p2, p3, p4);
+        
+        let kPair1 = [p1, p2].sort().join('-'), kPair2 = [p3, p4].sort().join('-');
+        pairHistory[kPair1] = (pairHistory[kPair1] || 0) + 1;
+        pairHistory[kPair2] = (pairHistory[kPair2] || 0) + 1;
+        sideHistory[kPair1] = (sideHistory[kPair1] || 0) + 1;
+        sideHistory[kPair2] = (sideHistory[kPair2] || 0) + 1;
+        
+        let v13 = [p1, p3].sort().join('-'), v14 = [p1, p4].sort().join('-'), v23 = [p2, p3].sort().join('-'), v24 = [p2, p4].sort().join('-');
+        vsHistory[v13] = (vsHistory[v13] || 0) + 1;
+        vsHistory[v14] = (vsHistory[v14] || 0) + 1;
+        vsHistory[v23] = (vsHistory[v23] || 0) + 1;
+        vsHistory[v24] = (vsHistory[v24] || 0) + 1;
+        
+        let posL = c * 2, posR = c * 2 + 1;
+        courtHistory[p1 + '-' + posL] = (courtHistory[p1 + '-' + posL] || 0) + 1;
+        courtHistory[p2 + '-' + posL] = (courtHistory[p2 + '-' + posL] || 0) + 1;
+        courtHistory[p3 + '-' + posR] = (courtHistory[p3 + '-' + posR] || 0) + 1;
+        courtHistory[p4 + '-' + posR] = (courtHistory[p4 + '-' + posR] || 0) + 1;
+      }
+      members.forEach(mb => {
+        if (playedIds.indexOf(mb.id) !== -1) {
+          mb.count++;
+          mb.restCount = 0;
+        } else {
+          mb.restCount++;
+        }
+      });
+    }
+  }
+  
+  return members.map(m => m.count);
+}
+
+let output = '========== バックテスト開始 ==========\n\n';
+
+// シナリオ1: 8人、2コート、20試合
+output += '【シナリオ1】 8人, 2コート, 20試合\n';
+let result1 = runScenario(8, 2, 20);
+let min1 = Math.min(...result1);
+let max1 = Math.max(...result1);
+output += 'ID別試合数: ' + result1.join(', ') + '\n';
+output += `平均: ${(result1.reduce((a,b)=>a+b,0)/result1.length).toFixed(2)}\n`;
+output += `最小: ${min1}, 最大: ${max1}, 差: ${max1 - min1}\n`;
+output += `評価: ${max1 - min1 <= 1 ? '✅ 優秀' : max1 - min1 <= 2 ? '⚠️ 良好' : '❌ 問題あり'}\n\n`;
+
+// シナリオ2: 12人、3コート、25試合
+output += '【シナリオ2】 12人, 3コート, 25試合\n';
+let result2 = runScenario(12, 3, 25);
+let min2 = Math.min(...result2);
+let max2 = Math.max(...result2);
+output += 'ID別試合数: ' + result2.join(', ') + '\n';
+output += `平均: ${(result2.reduce((a,b)=>a+b,0)/result2.length).toFixed(2)}\n`;
+output += `最小: ${min2}, 最大: ${max2}, 差: ${max2 - min2}\n`;
+output += `評価: ${max2 - min2 <= 1 ? '✅ 優秀' : max2 - min2 <= 2 ? '⚠️ 良好' : '❌ 問題あり'}\n\n`;
+
+// シナリオ3: 20人、5コート、30試合
+output += '【シナリオ3】 20人, 5コート, 30試合\n';
+let result3 = runScenario(20, 5, 30);
+let min3 = Math.min(...result3);
+let max3 = Math.max(...result3);
+output += 'ID別試合数: ' + result3.join(', ') + '\n';
+output += `平均: ${(result3.reduce((a,b)=>a+b,0)/result3.length).toFixed(2)}\n`;
+output += `最小: ${min3}, 最大: ${max3}, 差: ${max3 - min3}\n`;
+output += `評価: ${max3 - min3 <= 1 ? '✅ 優秀' : max3 - min3 <= 2 ? '⚠️ 良好' : '❌ 問題あり'}\n\n`;
+
+output += '========== バックテスト終了 ==========\n\n';
+output += '結果サマリー:\n';
+output += `シナリオ1: 差 = ${max1 - min1}\n`;
+output += `シナリオ2: 差 = ${max2 - min2}\n`;
+output += `シナリオ3: 差 = ${max3 - min3}\n\n`;
+
+if ((max1 - min1) <= 2 && (max2 - min2) <= 2 && (max3 - min3) <= 2) {
+  output += '✅ すべてのシナリオで問題なし！\n';
+} else {
+  output += '⚠️ いくつかのシナリオでばらつきがあります。\n';
+  output += 'アルゴリズムの改善が必要かもしれません。\n';
+}
+
+document.getElementById('output').textContent = output;
+</script>
+</body></html>

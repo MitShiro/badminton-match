@@ -1,100 +1,395 @@
-<!DOCTYPE html><html><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>Badminton Ver0.3.1</title><style>
-body{font-family:-apple-system,sans-serif;padding:15px;background:#f2f2f7;max-width:600px;margin:0 auto;color:#1c1c1e}h1{text-align:center;font-size:18px;margin-bottom:15px}.match-count-title{text-align:center;font-size:16px;font-weight:bold;color:#555;margin-bottom:10px}.box{background:white;padding:15px;border-radius:12px;margin-bottom:12px;box-shadow:0 1px 3px rgba(0,0,0,0.1)}.flex-row{display:flex;gap:8px;margin-bottom:8px;align-items:center;justify-content:space-between}select{padding:10px;border:1px solid #c7c7cc;border-radius:8px;font-size:16px;background:white}button{padding:12px;background:#007aff;color:white;border:none;border-radius:8px;font-weight:bold;font-size:16px}.btn-success{background:#34c759;width:100%;padding:14px;font-size:18px;margin-top:5px}.number-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-top:10px}.num-btn{background:#e5e5ea;color:#1c1c1e;border:none;border-radius:8px;padding:12px 0;font-size:16px;font-weight:bold;text-align:center}.num-btn.active{background:#007aff;color:white}.court-title{font-weight:bold;color:#007aff;border-bottom:2px solid #007aff;padding-bottom:4px;margin-top:15px;font-size:16px}.match-display{font-size:20px;font-weight:bold;text-align:center;margin:10px 0;background:#f2f2f7;padding:12px;border-radius:8px}.status-text{font-size:12px;color:#8e8e93;margin-top:2px}.history-item{background:#fafafa;border:1px solid #e5e5ea;border-radius:8px;padding:10px;margin-bottom:8px;position:relative}.history-title{font-size:14px;font-weight:bold;color:#555}.history-detail{font-size:15px;margin-top:4px}.btn-undo{background:#ff3b30;font-size:12px;padding:6px 10px;position:absolute;right:10px;top:10px;color:white;border-radius:6px;border:none;font-weight:bold}
-</style></head><body>
-<h1>🏸 ダブルス組み合わせ（Ver0.3.1）</h1>
-<div id="matchCounter" class="match-count-title">現在：まだ試合はありません</div>
-<div class="box"><div class="flex-row"><span>使用コート数:</span><select id="courtSelect"><option value="1">1 面</option><option value="2">2 面</option><option value="3">3 面</option><option value="4">4 面</option></select></div><button class="btn-success" onclick="makeMatches()">次の試合を組む</button><div id="matchOutput"></div></div>
-<div class="box"><h3>今日いる人の数字をタップ（青＝参加中）</h3><span style="font-size:12px;color:#8e8e93">※カッコ内は試合数</span><div class="number-grid" id="numberGrid"></div></div>
-<div class="box"><h3>過去の試合履歴</h3><div id="historyOutput" style="font-size:14px;color:#555">履歴はまだありません。</div></div>
-<script>
-let members=[];for(let i=1;i<=20;i++){members.push({id:i,count:0,active:false,restCount:0,joinIndex:0})}
-let pairHistory={},vsHistory={},sideHistory={},courtHistory={},globalMatchIndex=0,matchHistory=[];
-function renderGrid(){
-    const g=document.getElementById('numberGrid');g.innerHTML='';
-    members.forEach((m)=>{g.innerHTML+=`<button class="num-btn ${m.active?'active':''}" onclick="toggleActive(${m.id})">${m.id}<div class="status-text">${m.count}回</div></button>`})
-}
-function toggleActive(id){
-    let m=members.find(x=>x.id===id);
-    if(!m.active){m.joinIndex=globalMatchIndex}else{m.joinIndex=0}
-    m.active=!m.active;rebuildAllStatus();renderGrid()
-}
-function getScore(p1,p2,h){const k=[p1,p2].sort().join('-');return h[k]||0}
-function getCtScore(p,pos){const k=p+'-'+pos;return courtHistory[k]||0}
-function renderHistory(){
-    const h=document.getElementById('historyOutput');if(!h)return;if(matchHistory.length===0){h.innerHTML='履歴はまだありません。';return}
-    let html='';for(let i=matchHistory.length-1;i>=0;i--){
-        let m=matchHistory[i],dt='';for(let j=0;j<m.courts.length;j++){let c=m.courts[j];dt+=`<div>面${j+1}: [${c.p1}-${c.p2}] vs [${c.p3}-${c.p4}]</div>`}
-        html+=`<div class="history-item"><div class="history-title">第 ${m.matchNum} 試合</div>${i===matchHistory.length-1?'<button class="btn-undo" onclick="undoMatch()">↩︎</button>':''}<div class="history-detail">${dt}</div></div>`
-    }
-    h.innerHTML=html
-}
-function rebuildAllStatus(){
-    pairHistory={};vsHistory={};sideHistory={};courtHistory={};globalMatchIndex=matchHistory.length;
-    members.forEach(m=>{if(m.joinIndex>globalMatchIndex)m.joinIndex=globalMatchIndex;m.count=0;m.restCount=m.active?m.joinIndex:0});
-    for(let i=0; i<matchHistory.length; i++){
-        let m=matchHistory[i],playedIds=[];
-        for(let c=0; c<m.courts.length; c++){
-            let o=m.courts[c];let p1=o.p1,p2=o.p2,p3=o.p3,p4=o.p4;playedIds.push(p1,p2,p3,p4);
-            let kPair1=[p1,p2].sort().join('-'),kPair2=[p3,p4].sort().join('-');
-            pairHistory[kPair1]=(pairHistory[kPair1]||0)+1;pairHistory[kPair2]=(pairHistory[kPair2]||0)+1;
-            sideHistory[kPair1]=(sideHistory[kPair1]||0)+1;sideHistory[kPair2]=(sideHistory[kPair2]||0)+1;
-            let v13=[p1,p3].sort().join('-'),v14=[p1,p4].sort().join('-'),v23=[p2,p3].sort().join('-'),v24=[p2,p4].sort().join('-');
-            vsHistory[v13]=(vsHistory[v13]||0)+1;vsHistory[v14]=(vsHistory[v14]||0)+1;vsHistory[v23]=(vsHistory[v23]||0)+1;vsHistory[v24]=(vsHistory[v24]||0)+1;
-            let posL=c*2,posR=c*2+1;courtHistory[p1+'-'+posL]=(courtHistory[p1+'-'+posL]||0)+1;courtHistory[p2+'-'+posL]=(courtHistory[p2+'-'+posL]||0)+1;courtHistory[p3+'-'+posR]=(courtHistory[p3+'-'+posR]||0)+1;courtHistory[p4+'-'+posR]=(courtHistory[p4+'-'+posR]||0)+1;
-        }
-        members.forEach(mb=>{if(mb.active){if(playedIds.indexOf(mb.id)!==-1){mb.count++;mb.restCount=0}else{mb.restCount++}}});
-    }
-    document.getElementById('matchCounter').innerText=globalMatchIndex===0?"現在：まだ試合はありません":"現在：【第 "+globalMatchIndex+" 試合目】";
-}
-function undoMatch(){if(matchHistory.length===0)return;matchHistory.pop();rebuildAllStatus();document.getElementById('matchOutput').innerHTML='<div style="color:#ff3b30;text-align:center;padding:10px;font-weight:bold;">1試合取り消されました</div>';renderGrid();renderHistory()}
-function makeMatches(){
-    let pool=members.filter(m=>m.active);const courtCount=parseInt(document.getElementById('courtSelect').value);const req=courtCount*4;
-    if(pool.length<req){alert(`数字が青くなっている人が ${req} 人以上必要です！`);return}
-    let best=null;
-    if(pool.every(m=>m.count===0)){pool.sort((a,b)=>a.id-b.id);best=[...pool.slice(0,req)]}else{
-        let maxRest=0;pool.forEach(m=>{if(m.restCount>maxRest)maxRest=m.restCount});
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width,initial-scale=1.0,maximum-scale=1.0,user-scalable=no">
+    <title>Badminton Ver0.4</title>
+    <style>
+        body { font-family: -apple-system, sans-serif; padding: 15px; background: #f2f2f7; max-width: 600px; margin: 0 auto; color: #1c1c1e; }
+        h1 { text-align: center; font-size: 18px; margin-bottom: 15px; }
+        .box { background: white; padding: 15px; border-radius: 12px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .flex-row { display: flex; gap: 8px; margin-bottom: 8px; align-items: center; justify-content: space-between; }
+        .counter-area { display: flex; align-items: center; gap: 8px; }
+        .match-count-title { font-size: 18px !important; font-weight: bold !important; }
         
-        // 【バグ完全解決】1.連続お休み数順 2.トータル試合数が少ない順 3.同着ならランダム の3重ソートで出ずっぱりを強制排除
-        pool.sort(()=>Math.random()-0.5);
-        pool.sort((a,b)=>{
-            if(b.restCount !== a.restCount) return b.restCount - a.restCount;
-            if(a.count !== b.count) return a.count - b.count;
-            return 0;
+        .grid-title-area { display: flex; align-items: center; justify-content: space-between; width: 100%; gap: 10px; }
+        .grid-title-area h3 { margin: 0; font-size: 16px; line-height: 1.4; flex-grow: 1; }
+        .controls-right { display: flex; align-items: center; gap: 6px; flex-shrink: 0; margin-left: auto; }
+        
+        select { padding: 10px; border: 1px solid #c7c7cc; border-radius: 8px; font-size: 16px; background: white; }
+        button { padding: 12px; background: #007aff; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; }
+        
+        .top-action-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; }
+        .btn-success { background: #34c759; padding: 10px 16px; font-size: 16px; flex-shrink: 0; }
+        
+        .number-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-top: 10px; }
+        .num-btn { background: #e5e5ea; color: #1c1c1e; border: none; border-radius: 8px; padding: 12px 0; font-size: 16px; font-weight: bold; text-align: center; }
+        .num-btn.active { background: #007aff; color: white; }
+        .status-text { font-size: 12px; color: #8e8e93; margin-top: 2px; }
+        .num-btn.active .status-text { color: #e5e5ea; }
+        .court-card { background: #f2f2f7; border-radius: 8px; padding: 14px; margin-top: 10px; }
+        .court-name { font-size: 14px; font-weight: bold; color: #007aff; margin-bottom: 8px; }
+        .match-display { font-size: 22px !important; font-weight: bold !important; text-align: center; background: white; padding: 10px; border-radius: 6px; border: 1px solid #e5e5ea; white-space: nowrap; }
+        .history-item { background: #fafafa; border: 1px solid #e5e5ea; border-radius: 8px; padding: 12px; margin-bottom: 8px; position: relative; padding-right: 65px; min-height: 40px; }
+        .history-title { font-size: 14px; font-weight: bold; color: #555; }
+        .history-detail { font-size: 15px; margin-top: 4px; }
+        .btn-undo { background: #ff3b30; font-size: 18px; width: 44px; height: 44px; color: white; border-radius: 8px; display: flex; align-items: center; justify-content: center; box-shadow: 0 1px 3px rgba(0,0,0,0.2); cursor: pointer; padding: 0; }
+        .history-item .btn-undo { position: absolute; right: 10px; top: 50%; transform: translateY(-50%); }
+        #topUndoBtn { display: none; }
+        .undo-alert { color: #ff3b30; text-align: center; padding: 10px 0 0 0; font-weight: bold; font-size: 15px; }
+    </style>
+</head>
+<body>
+
+<h1>🏸 ダブルス組み合わせ（Ver0.4）</h1>
+
+<div class="box">
+    <div class="top-action-row">
+        <div class="counter-area">
+            <div id="matchCounter" class="match-count-title">【試合無し】</div>
+            <button id="topUndoBtn" class="btn-undo" onclick="undoMatch()">↩︎</button>
+        </div>
+        <button class="btn-success" onclick="makeMatches()">次の試合を組む</button>
+    </div>
+    <div id="undoMessageOutput"></div>
+    <div id="matchOutput"></div>
+</div>
+
+<div class="box">
+    <div class="flex-row">
+        <div class="grid-title-area">
+            <h3>参加者をタップ<br>（青＝参加中）</h3>
+            <div class="controls-right">
+                <span>使用コート数:</span>
+                <select id="courtSelect" onchange="syncCourtsWithActive()">
+                    <option value="1">1 面</option>
+                    <option value="2">2 面</option>
+                    <option value="3">3 面</option>
+                    <option value="4">4 面</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    <span style="font-size:12px;color:#8e8e93">※下は試合数</span>
+    <div class="number-grid" id="numberGrid"></div>
+</div>
+
+<div class="box">
+    <h3>過去の試合履歴</h3>
+    <div id="historyOutput" style="font-size:14px;color:#555">履歴はまだありません。</div>
+</div>
+
+<script>
+const MAX_MEMBERS = 24;
+let members = [];
+for (let i = 1; i <= MAX_MEMBERS; i++) {
+    members.push({ id: i, count: 0, active: (i <= 8), restCount: 0, joinIndex: 0 });
+}
+
+let pairHistory = {}, vsHistory = {}, sideHistory = {}, courtHistory = {};
+let globalMatchIndex = 0;
+let matchHistory = [];
+
+function renderGrid() {
+    const g = document.getElementById('numberGrid');
+    g.innerHTML = '';
+    members.forEach((m) => {
+        g.innerHTML += `<button class="num-btn ${m.active ? 'active' : ''}" onclick="toggleActive(${m.id})">${m.id}<div class="status-text">${m.count}回</div></button>`;
+    });
+}
+
+function autoAdjustCourts() {
+    let activeCount = members.filter(m => m.active).length;
+    let recommendedCourts = activeCount >= 16 ? 4 : activeCount >= 12 ? 3 : activeCount >= 8 ? 2 : 1;
+    document.getElementById('courtSelect').value = recommendedCourts;
+}
+
+function syncCourtsWithActive() {
+    const courtCount = parseInt(document.getElementById('courtSelect').value);
+    const req = courtCount * 4;
+    let activeCount = members.filter(m => m.active).length;
+    
+    if (activeCount < req) {
+        for (let i = 0; i < members.length; i++) {
+            if (!members[i].active) {
+                members[i].active = true;
+                members[i].joinIndex = globalMatchIndex;
+                activeCount++;
+                if (activeCount >= req) break;
+            }
+        }
+    } else if (activeCount > req) {
+        for (let i = members.length - 1; i >= 0; i--) {
+            if (members[i].active) {
+                members[i].active = false;
+                members[i].joinIndex = 0;
+                activeCount--;
+                if (activeCount <= req) break;
+            }
+        }
+    }
+    rebuildAllStatus();
+    renderGrid();
+}
+
+function toggleActive(id) {
+    let m = members.find(x => x.id === id);
+    m.active = !m.active;
+    m.joinIndex = m.active ? globalMatchIndex : 0;
+    autoAdjustCourts();
+    rebuildAllStatus();
+    renderGrid();
+}
+
+// 小文字統一構造の完全死守
+function getScore(p1, p2, h) {
+    return h[[p1, p2].sort().join('-')] || 0;
+}
+
+// 小文字統一構造の完全死守
+function getCtScore(p, pos) {
+    return courtHistory[p + '-' + pos] || 0;
+}
+
+function renderHistory() {
+    const h = document.getElementById('historyOutput');
+    if (!h || matchHistory.length === 0) { h.innerHTML = '履歴はまだありません。'; return; }
+    let html = '';
+    for (let i = matchHistory.length - 1; i >= 0; i--) {
+        let m = matchHistory[i], dt = '';
+        for (let j = 0; j < m.courts.length; j++) {
+            let c = m.courts[j];
+            let p1 = c.p1 || c.P1, p2 = c.p2 || c.P2, p3 = c.p3 || c.P3, p4 = c.p4 || c.P4;
+            dt += `<div>コート${j+1}: [${p1}-${p2}] vs [${p3}-${p4}]</div>`;
+        }
+        html += `<div class="history-item"><div class="history-title">第 ${m.matchNum} 試合</div>${i === matchHistory.length - 1 ? '<button class="btn-undo" onclick="undoMatch()">↩︎</button>' : ''}<div class="history-detail">${dt}</div></div>`;
+    }
+    h.innerHTML = html;
+}
+
+function updateTopDisplay() {
+    const topUndo = document.getElementById('topUndoBtn');
+    if (globalMatchIndex === 0) {
+        document.getElementById('matchCounter').innerText = "【試合無し】";
+        if (topUndo) topUndo.style.display = 'none';
+    } else {
+        document.getElementById('matchCounter').innerText = "【第 " + globalMatchIndex + " 試合】";
+        if (topUndo) topUndo.style.display = 'flex';
+    }
+}
+function rebuildAllStatus() {
+    pairHistory = {}; vsHistory = {}; sideHistory = {}; courtHistory = {};
+    globalMatchIndex = matchHistory.length;
+    
+    // 5番問題を完璧に封じ込めている、もっとも安定した初期化ロジック
+    members.forEach(m => {
+        m.count = 0;
+        if (!m.active) { m.restCount = 0; }
+    });
+    
+    for (let i = 0; i < matchHistory.length; i++) {
+        let m = matchHistory[i], playedIds = [];
+        for (let c = 0; c < m.courts.length; c++) {
+            let o = m.courts[c];
+            let p1 = o.p1 || o.P1, p2 = o.p2 || o.P2, p3 = o.p3 || o.P3, p4 = o.p4 || o.P4;
+            playedIds.push(p1, p2, p3, p4);
+            
+            let k1 = [p1, p2].sort().join('-'), k2 = [p3, p4].sort().join('-');
+            pairHistory[k1] = (pairHistory[k1] || 0) + 1;
+            pairHistory[k2] = (pairHistory[k2] || 0) + 1;
+            sideHistory[k1] = (sideHistory[k1] || 0) + 1;
+            sideHistory[k2] = (sideHistory[k2] || 0) + 1;
+            
+            let v13 = [p1, p3].sort().join('-'), v14 = [p1, p4].sort().join('-'),
+                v23 = [p2, p3].sort().join('-'), v24 = [p2, p4].sort().join('-');
+            vsHistory[v13] = (vsHistory[v13] || 0) + 1;
+            vsHistory[v14] = (vsHistory[v14] || 0) + 1;
+            vsHistory[v23] = (vsHistory[v23] || 0) + 1;
+            vsHistory[v24] = (vsHistory[v24] || 0) + 1;
+            
+            let posL = c * 2, posR = c * 2 + 1;
+            courtHistory[p1 + '-' + posL] = (courtHistory[p1 + '-' + posL] || 0) + 1;
+            courtHistory[p2 + '-' + posL] = (courtHistory[p2 + '-' + posL] || 0) + 1;
+            courtHistory[p3 + '-' + posR] = (courtHistory[p3 + '-' + posR] || 0) + 1;
+            courtHistory[p4 + '-' + posR] = (courtHistory[p4 + '-' + posR] || 0) + 1;
+        }
+        
+        members.forEach(mb => {
+            if (mb.active) {
+                if (playedIds.indexOf(mb.id) !== -1) {
+                    mb.count++;
+                    mb.restCount = 0;
+                } else {
+                    if (i >= mb.joinIndex) { mb.restCount++; }
+                }
+            }
+        });
+    }
+    updateTopDisplay();
+}
+
+function undoMatch() {
+    if (matchHistory.length === 0) return;
+    matchHistory.pop();
+    rebuildAllStatus();
+    
+    document.getElementById('undoMessageOutput').innerHTML = '<div class="undo-alert">1試合取り消されました</div>';
+    
+    let out = document.getElementById('matchOutput');
+    if (matchHistory.length > 0) {
+        let lm = matchHistory[matchHistory.length - 1], html = '';
+        for (let j = 0; j < lm.courts.length; j++) {
+            let c = lm.courts[j];
+            let p1 = c.p1 || c.P1, p2 = c.p2 || c.P2, p3 = c.p3 || c.P3, p4 = c.p4 || c.P4;
+            html += `<div class="court-card"><div class="court-name">コート ${j+1}</div><div class="match-display">【${p1}・${p2}】 vs 【${p3}・${p4}】</div></div>`;
+        }
+        out.innerHTML = html;
+    } else {
+        out.innerHTML = '';
+    }
+    renderGrid();
+    renderHistory();
+}
+
+function makeMatches() {
+    let pool = members.filter(m => m.active);
+    const courtCount = parseInt(document.getElementById('courtSelect').value);
+    const req = courtCount * 4;
+    
+    if (pool.length < req) {
+        alert(`数字が青くなっている人が ${req} 人以上必要です！\n（現在: ${pool.length} 人）`);
+        return;
+    }
+    
+    document.getElementById('undoMessageOutput').innerHTML = '';
+    let bestCourts = [];
+    
+    if (globalMatchIndex === 0 && pool.every(m => m.count === 0)) {
+        pool.sort((a, b) => a.id - b.id);
+        let sel = pool.slice(0, req);
+        for (let c = 0; c < courtCount; c++) {
+            let idx = c * 4;
+            bestCourts.push({ p1: sel[idx].id, p2: sel[idx+1].id, p3: sel[idx+2].id, p4: sel[idx+3].id });
+        }
+    } else {
+        for (let i = pool.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [pool[i], pool[j]] = [pool[j], pool[i]];
+        }
+        
+        // 1回休んだら次100%コートに出し、2連続休み（2連休）を未然に絶対阻止する大原則数式
+        pool.sort((a, b) => {
+            let aR1 = a.restCount >= 1 ? 1 : 0;
+            let bR1 = b.restCount >= 1 ? 1 : 0;
+            return bR1 - aR1;
         });
         
-        let sel=pool.slice(0,req);let min=Infinity;
-        for(let i=0; i<300; i++){
-            let tmp=[...sel].sort(()=>Math.random()-0.5).slice(0,req),scr=0;
-            for(let c=0;c<courtCount;c++){
-                let idx=c*4,t1=tmp[idx].id,t2=tmp[idx+1].id,t3=tmp[idx+2].id,t4=tmp[idx+3].id;
-                let posL=c*2,posR=(c*2)+1;
-                scr+=getScore(t1,t2,pairHistory)*5+getScore(t3,t4,pairHistory)*5;
-                scr+=getScore(t1,t3,vsHistory)+getScore(t1,t4,vsHistory)+getScore(t2,t3,vsHistory)+getScore(t2,t4,vsHistory);
-                scr+=getScore(t1,t2,sideHistory)+getScore(t3,t4,sideHistory)+getCtScore(t1,posL)*2+getCtScore(t2,posL)*2+getCtScore(t3,posR)*2+getCtScore(t4,posR)*2;
-                if(matchHistory.length > 0){
-                    let lastM = matchHistory[matchHistory.length-1];
-                    let isLast = function(p1,p2){let k=[p1,p2].sort().join('-');return lastM.courts.some(o=>[o.p1,o.p2].sort().join('-')===k||[o.p3,o.p4].sort().join('-')===k)};
-                    if(isLast(t1,t2)||isLast(t3,t4))scr+=2000;
-                }
-                let pA=[t1,t2].sort().join('-'),pB=[t3,t4].sort().join('-');let curKey=[pA,pB].sort().join('/');let isDup = false;
-                for(let hIdx=0; hIdx<matchHistory.length; hIdx++){
-                    let hRef=matchHistory[hIdx];
-                    for(let cIdx=0; cIdx<hRef.courts.length; cIdx++){
-                        let o=hRef.courts[cIdx];let cA=[o.p1,o.p2].sort().join('-'),cB=[o.p3,o.p4].sort().join('-');
-                        if([cA,cB].sort().join('/')===curKey){isDup=true;break;}
-                    }
-                    if(isDup)break;
-                }
-                if(isDup) scr += 1000;
+        let sel = pool.slice(0, req), minScore = Infinity;
+        
+        for (let i = 0; i < 300; i++) {
+            let tmp = [...sel];
+            for (let k = tmp.length - 1; k > 0; k--) {
+                const j = Math.floor(Math.random() * (k + 1));
+                [tmp[k], tmp[j]] = [tmp[j], tmp[k]];
             }
-            if(scr<min){min=scr;best=tmp}
+            
+            let currentScore = 0, tempCourts = [];
+            
+            for (let c = 0; c < courtCount; c++) {
+                let idx = c * 4, t1 = tmp[idx].id, t2 = tmp[idx+1].id, t3 = tmp[idx+2].id, t4 = tmp[idx+3].id;
+                
+                currentScore += getScore(t1, t2, pairHistory) * 5 + getScore(t3, t4, pairHistory) * 5;
+                currentScore += getScore(t1, t3, vsHistory) + getScore(t1, t4, vsHistory) + getScore(t2, t3, vsHistory) + getScore(t2, t4, vsHistory);
+                currentScore += getScore(t1, t2, sideHistory) + getScore(t3, t4, sideHistory) + getCtScore(t1, c * 2) * 2 + getCtScore(t2, c * 2) * 2 + getCtScore(t3, c * 2 + 1) * 2 + getCtScore(t4, c * 2 + 1) * 2;
+                
+                // アイデアA：直前の試合に出ていた人にブレーキ（+200点）を課して居座り連続プレイを抑止
+                if (matchHistory.length > 0) {
+                    let lastM = matchHistory[matchHistory.length - 1];
+                    [t1, t2, t3, t4].forEach(p => {
+                        if (lastM.courts.some(o => (o.p1||o.P1) === p || (o.p2||o.P2) === p || (o.p3||o.P3) === p || (o.p4||o.P4) === p)) {
+                            currentScore += 200;
+                        }
+                    });
+                }
+
+                if (matchHistory.length > 0) {
+                    let lastM = matchHistory[matchHistory.length - 1];
+                    let isLast = function(p1, p2) {
+                        let k = [p1, p2].sort().join('-');
+                        return lastM.courts.some(o => [(o.p1 || o.P1), (o.p2 || o.P2)].sort().join('-') === k);
+                    };
+                    if (isLast(t1, t2) || isLast(t3, t4)) currentScore += 2000;
+                }
+                
+                let pA = [t1, t2].sort().join('-'), pB = [t3, t4].sort().join('-');
+                let curKey = [pA, pB].sort().join('/');
+                
+                for (let hIdx = 0; hIdx < matchHistory.length; hIdx++) {
+                    let hRef = matchHistory[hIdx];
+                    for (let cIdx = 0; cIdx < hRef.courts.length; cIdx++) {
+                        let hc = hRef.courts[cIdx];
+                        let hp1 = hc.p1 || hc.P1, hp2 = hc.p2 || hc.P2, hp3 = hc.p3 || hc.P3, hp4 = hc.p4 || hc.P4;
+                        let hpA = [hp1, hp2].sort().join('-'), hpB = [hp3, hp4].sort().join('-');
+                        if (curKey === [hpA, hpB].sort().join('/')) currentScore += 5000;
+                    }
+                }
+                tempCourts.push({ p1: t1, p2: t2, p3: t3, p4: t4 });
+            }
+            
+            if (currentScore < minScore) { minScore = currentScore; bestCourts = tempCourts; }
         }
     }
-    let nextNum = matchHistory.length + 1;let rec={matchNum:nextNum,courts:[]};
-    for(let c=0;c<courtCount;c++){let idx=c*4;rec.courts.push({p1:best[idx].id,p2:best[idx+1].id,p3:best[idx+2].id,p4:best[idx+3].id})}
-    matchHistory.push(rec);rebuildAllStatus();
-    let html='';for(let c=0;c<courtCount;c++){let idx=c*4;html+='<div class="court-title">第 '+(c+1)+' コート</div><div class="match-display">【 '+best[idx].id+' ・ '+best[idx+1].id+' 】 vs 【 '+best[idx+2].id+' ・ '+best[idx+3].id+' 】</div>'}
-    document.getElementById('matchOutput').innerHTML=html;renderGrid();renderHistory()
+    
+    globalMatchIndex++;
+    matchHistory.push({ matchNum: globalMatchIndex, courts: bestCourts });
+    
+    let playedIds = [];
+    bestCourts.forEach((c, idx) => {
+        let p1 = c.p1, p2 = c.p2, p3 = c.p3, p4 = c.p4;
+        playedIds.push(p1, p2, p3, p4);
+        
+        let k1 = [p1, p2].sort().join('-'), k2 = [p3, p4].sort().join('-');
+        pairHistory[k1] = (pairHistory[k1] || 0) + 1;
+        pairHistory[k2] = (pairHistory[k2] || 0) + 1;
+        sideHistory[k1] = (sideHistory[k1] || 0) + 1;
+        sideHistory[k2] = (sideHistory[k2] || 0) + 1;
+        
+        let v13 = [p1, p3].sort().join('-'), v14 = [p1, p4].sort().join('-'),
+            v23 = [p2, p3].sort().join('-'), v24 = [p2, p4].sort().join('-');
+        vsHistory[v13] = (vsHistory[v13] || 0) + 1;
+        vsHistory[v14] = (vsHistory[v14] || 0) + 1;
+        vsHistory[v23] = (vsHistory[v23] || 0) + 1;
+        vsHistory[v24] = (vsHistory[v24] || 0) + 1;
+        
+        let posL = idx * 2, posR = idx * 2 + 1;
+        courtHistory[p1 + '-' + posL] = (courtHistory[p1 + '-' + posL] || 0) + 1;
+        courtHistory[p2 + '-' + posL] = (courtHistory[p2 + '-' + posL] || 0) + 1;
+        courtHistory[p3 + '-' + posR] = (courtHistory[p3 + '-' + posR] || 0) + 1;
+        courtHistory[p4 + '-' + posR] = (courtHistory[p4 + '-' + posR] || 0) + 1;
+    });
+    
+    // 【仕様遵守】通常の試合生成時はこのリアルタイム足し算のみ。データ破壊を引き起こしていた過去ループ呼び出し（makeMatches末尾）は100%存在しません。
+    members.forEach(m => {
+        if (m.active) {
+            if (playedIds.indexOf(m.id) !== -1) { m.count++; m.restCount = 0; } else { m.restCount++; }
+        }
+    });
+    
+    let out = document.getElementById('matchOutput'), html = '';
+    for (let j = 0; j < bestCourts.length; j++) {
+        let c = bestCourts[j];
+        html += `<div class="court-card"><div class="court-name">コート ${j+1}</div><div class="match-display">【${c.p1}・${c.p2}】 vs 【${c.p3}・${c.p4}】</div></div>`;
+    }
+    out.innerHTML = html;
+    
+    updateTopDisplay();
+    renderGrid();
+    renderHistory();
 }
+
+document.getElementById('courtSelect').value = "2";
+rebuildAllStatus();
 renderGrid();
-</script></body></html>
+</script>
+</body>
+</html>
